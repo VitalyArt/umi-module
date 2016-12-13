@@ -18,8 +18,14 @@ class RCrmIcml
         $domainsCollection = domainsCollection::getInstance();
         $domainsCollectionList = $domainsCollection->getList();
         $domainCollection = $domainsCollectionList[1];
-        $serverProtocol = mainConfiguration::getInstance()->get('system', 'server-protocol') . '://';
-        $this->shopUrl = $serverProtocol . $domainCollection->getHost();
+        
+        if (mainConfiguration::getInstance()->get('system', 'server-protocol')) {
+            $serverProtocol = mainConfiguration::getInstance()->get('system', 'server-protocol');
+        } else {
+            $serverProtocol = 'http';
+        }
+
+        $this->shopUrl = $serverProtocol . '://' . $domainCollection->getHost();
     }
 
     public function generateICML()
