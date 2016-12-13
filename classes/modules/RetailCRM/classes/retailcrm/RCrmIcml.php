@@ -92,12 +92,15 @@ class RCrmIcml
     {
         $url = '/' . $obj->getAltName();
 
+        $ids = array($obj->getRel());
         $parent = new umiHierarchyElement($obj->getRel());
+
         while (true) {
             $url = '/' . $parent->getAltName() . $url;
 
-            if ($parent->getRel() != 0) {
+            if ($parent->getRel() != 0 && !in_array($parent->getRel(), $ids)) {
                 $parent = new umiHierarchyElement($parent->getRel());
+                array_push($ids, $parent->getRel());
             } else {
                 break;
             }
