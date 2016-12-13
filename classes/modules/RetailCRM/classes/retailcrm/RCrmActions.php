@@ -131,15 +131,23 @@ class RCrmActions
                 $deliveryNotes = $deliveryObj->getValue('order_comments');
 
                 if ($deliveryObj->getValue('region') !== null) {
-                    $deliveryRegionObj = new umiObject($deliveryObj->getValue('region'));
-                    $deliveryRegion = $deliveryRegionObj->getName();
+                    try {
+                        $deliveryRegionObj = new umiObject($deliveryObj->getValue('region'));
+                        $deliveryRegion = $deliveryRegionObj->getName();
+                    } catch (Exception $e) {
+                        $deliveryRegion = $deliveryObj->getValue('region');
+                    }
                 } else {
                     $deliveryRegion = '';
                 }
 
                 if ($deliveryObj->getValue('city') !== null) {
-                    $deliveryCityObj = new umiObject($deliveryObj->getValue('city'));
-                    $deliveryCity = $deliveryCityObj->getName();
+                    try {
+                        $deliveryCityObj = new umiObject($deliveryObj->getValue('city'));
+                        $deliveryCity = $deliveryCityObj->getName();
+                    } catch (Exception $e) {
+                        $deliveryCity = $deliveryObj->getValue('city');
+                    }
                 } else {
                     $deliveryCity = '';
                 }
