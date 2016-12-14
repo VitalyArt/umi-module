@@ -18,8 +18,14 @@ class RCrmIcml
         $domainsCollection = domainsCollection::getInstance();
         $domainsCollectionList = $domainsCollection->getList();
         $domainCollection = $domainsCollectionList[1];
-        $serverProtocol = mainConfiguration::getInstance()->get('system', 'server-protocol') . '://';
-        $this->shopUrl = $serverProtocol . $domainCollection->getHost();
+        
+        if (mainConfiguration::getInstance()->get('system', 'server-protocol')) {
+            $serverProtocol = mainConfiguration::getInstance()->get('system', 'server-protocol');
+        } else {
+            $serverProtocol = 'http';
+        }
+
+        $this->shopUrl = $serverProtocol . '://' . $domainCollection->getHost();
     }
 
     public function generateICML()
@@ -92,12 +98,15 @@ class RCrmIcml
     {
         $url = '/' . $obj->getAltName();
 
+        $ids = array($obj->getRel());
         $parent = new umiHierarchyElement($obj->getRel());
+
         while (true) {
             $url = '/' . $parent->getAltName() . $url;
 
-            if ($parent->getRel() != 0) {
+            if ($parent->getRel() != 0 && !in_array($parent->getRel(), $ids)) {
                 $parent = new umiHierarchyElement($parent->getRel());
+                array_push($ids, $parent->getRel());
             } else {
                 break;
             }
