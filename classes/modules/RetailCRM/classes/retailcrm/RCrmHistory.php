@@ -225,6 +225,10 @@ class RCrmHistory
                         $order->getObject()->getPropByName('payment_status_id')->setValue($umiOrderPaymentStatus);
                     }
 
+                    if (isset($crmOrder['delivery']['cost'])) {
+                        $order->getObject()->getPropByName('delivery_price')->setValue($crmOrder['delivery']['cost']);
+                    }
+                    
                     if (isset($crmOrder['delivery']['code'])) {
                         $relationOrderDeliveryTypesMap = $retailcrm->getRelationMap($config->get('retailcrm', 'orderDeliveryTypeMap'));
                         $umiOrderDeliveryType = $retailcrm->getRelationByMap($relationOrderDeliveryTypesMap, $crmOrder['delivery']['code'], true);
@@ -379,6 +383,10 @@ class RCrmHistory
                         $order->getObject()->getPropByName('payment_status_id')->setValue($umiOrderPaymentStatus);
                     }
 
+                    if (isset($crmOrder['delivery']['cost'])) {
+                        $order->getObject()->getPropByName('delivery_price')->setValue($crmOrder['delivery']['cost']);
+                    }
+                    
                     if (isset($crmOrder['delivery']['code'])) {
                         $relationOrderDeliveryTypesMap = $retailcrm->getRelationMap($config->get('retailcrm', 'orderDeliveryTypeMap'));
                         $umiOrderDeliveryType = $retailcrm->getRelationByMap($relationOrderDeliveryTypesMap, $crmOrder['delivery']['code'], true);
