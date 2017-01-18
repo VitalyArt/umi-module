@@ -23,7 +23,7 @@ Module allows integrate UMI.CMS with [RetailCRM](http://www.retailcrm.pro)
 Add to cron:
 
 ```
-* */4 * * * /usr/bin/php /path_to_site/public_html/cron.php RetailCRM icml
+0 */4 * * * /usr/bin/php /path_to_site/public_html/cron.php RetailCRM icml
 ```
 
 #### Getting changes in orders
