@@ -43,7 +43,7 @@ class RCrmActions
         $relationOrderDeliveryTypesMap = $retailcrm->getRelationMap($config->get('retailcrm', 'orderDeliveryTypeMap'));
         $crmOrderDeliveryType = $retailcrm->getRelationByMap($relationOrderDeliveryTypesMap, $umiOrderDeliveryId);
 
-        $customer = customer::get($order->getCustomerId());
+        $customer = new umiObject($order->getCustomerId());
         $orderItems = $order->getItems();
 
         $orderItemsToCrm = array();
