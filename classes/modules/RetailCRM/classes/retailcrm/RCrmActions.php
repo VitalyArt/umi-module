@@ -43,7 +43,7 @@ class RCrmActions
         $relationOrderDeliveryTypesMap = $retailcrm->getRelationMap($config->get('retailcrm', 'orderDeliveryTypeMap'));
         $crmOrderDeliveryType = $retailcrm->getRelationByMap($relationOrderDeliveryTypesMap, $umiOrderDeliveryId);
 
-        $customer = customer::get($order->getCustomerId());
+        $customer = new umiObject($order->getCustomerId());
         $orderItems = $order->getItems();
 
         $orderItemsToCrm = array();
@@ -98,7 +98,7 @@ class RCrmActions
             $oneClickObj = new umiObject($order->getObject()->getValue('purchaser_one_click'));
 
             $orderToCrm = array(
-                'number' => $order->getObject()->getName(),
+                'number' => $order->getObject()->getValue('number'),
                 'externalId' => $order->getId(),
                 'phone' => $oneClickObj->getValue('phone'),
                 'customer' => array(
@@ -169,7 +169,7 @@ class RCrmActions
             }
 
             $orderToCrm = array(
-                'number' => $order->getObject()->getName(),
+                'number' => $order->getObject()->getValue('number'),
                 'externalId' => $order->getId(),
                 'lastName' => $customer->getValue('lname'),
                 'firstName' => $customer->getValue('fname'),

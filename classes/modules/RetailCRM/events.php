@@ -1,14 +1,17 @@
 <?php
-    global $argv;
-
-    if ((!isset($argv[2]) || $argv[2] == 'icml') && !isset($_GET['module']) || (isset($_GET['action']) && $_GET['action'] == 'icml')) {
-        new umiEventListener('cron', 'RetailCRM', 'onCronGenerateICML');
+    $eventHandlers = array(
+        'icml' => 'onCronGenerateICML',
+        'history' => 'onCronSyncHistory',
+    );
+    
+    if (isset($_SERVER['argv'][2]) || isset($eventHandlers[$_SERVER['argv'][2]])) {
+        new umiEventListener('cron', 'RetailCRM', $eventHandlers[$_SERVER['argv'][2]]);
     }
-
-    if ((!isset($argv[2]) || $argv[2] == 'history') && !isset($_GET['module']) || (isset($_GET['action']) && $_GET['action'] == 'history')) {
-        new umiEventListener('cron', 'RetailCRM', 'onCronSyncHistory');
+    
+    if (isset($_GET['action']) && isset($eventHandlers[$_GET['action']])) {
+        new umiEventListener('cron', 'RetailCRM', $eventHandlers[$_GET['action']]);
     }
-
+    
     new umiEventListener('systemModifyPropertyValue', 'RetailCRM', 'onModifyProperty');
     new umiEventListener('systemModifyObject', 'RetailCRM', 'onModifyObject');
     new umiEventListener('order-status-changed', 'RetailCRM', 'onOrderStatusChanged');
