@@ -23,8 +23,7 @@ abstract class __RetailCRM_adm extends baseModuleAdmin
         if (!empty($apiKey) && !empty($crmUrl)) {
             $api = new RCrmProxy(
                 $config->get('retailcrm', 'crmUrl'),
-                $config->get('retailcrm', 'apiKey'),
-                __DIR__ . '/../../../retailcrm.error.log'
+                $config->get('retailcrm', 'apiKey')
             );
 
             if($api->paymentTypesList() !== false) {
@@ -36,7 +35,7 @@ abstract class __RetailCRM_adm extends baseModuleAdmin
                 $umiPaymentTypes = new selector('objects');
                 $umiPaymentTypes->types('object-type')->name('emarket', 'payment');
 
-                $map = $this->getRelationMap($config->get('retailcrm', 'orderPaymentTypeMap'));
+                $map = RCrmHelpers::getRelationMap($config->get('retailcrm', 'orderPaymentTypeMap'));
 
                 $orderPaymentsMapping = array();
                 foreach ($umiPaymentTypes->result() as $umiPaymentType) {
@@ -46,7 +45,7 @@ abstract class __RetailCRM_adm extends baseModuleAdmin
                     $translations['order-payment-type-' . $umiPaymentTypeId] = $umiPaymentTypeName;
 
                     $orderPaymentsMapping['select:order-payment-type-' . $umiPaymentTypeId] = array();
-                    $orderPaymentsMapping['select:order-payment-type-' . $umiPaymentTypeId]['value'] = $this->getRelationByMap($map,
+                    $orderPaymentsMapping['select:order-payment-type-' . $umiPaymentTypeId]['value'] = RCrmHelpers::getRelationByMap($map,
                         $umiPaymentTypeId);
 
                     $orderPaymentsMapping['select:order-payment-type-' . $umiPaymentTypeId]['none'] = '';
@@ -63,7 +62,7 @@ abstract class __RetailCRM_adm extends baseModuleAdmin
                 $umiDeliveryTypes = new selector('objects');
                 $umiDeliveryTypes->types('object-type')->name('emarket', 'delivery');
 
-                $map = $this->getRelationMap($config->get('retailcrm', 'orderDeliveryTypeMap'));
+                $map = RCrmHelpers::getRelationMap($config->get('retailcrm', 'orderDeliveryTypeMap'));
 
                 $orderDeliveryTypesMapping = array();
                 foreach ($umiDeliveryTypes as $umiDeliveryType) {
@@ -73,7 +72,7 @@ abstract class __RetailCRM_adm extends baseModuleAdmin
                     $translations['order-delivery-type-' . $umiDeliveryTypeId] = $umiDeliveryTypeName;
 
                     $orderDeliveryTypesMapping['select:order-delivery-type-' . $umiDeliveryTypeId] = array();
-                    $orderDeliveryTypesMapping['select:order-delivery-type-' . $umiDeliveryTypeId]['value'] = $this->getRelationByMap($map,
+                    $orderDeliveryTypesMapping['select:order-delivery-type-' . $umiDeliveryTypeId]['value'] = RCrmHelpers::getRelationByMap($map,
                         $umiDeliveryTypeId);
 
                     $orderDeliveryTypesMapping['select:order-delivery-type-' . $umiDeliveryTypeId]['none'] = '';
@@ -91,7 +90,7 @@ abstract class __RetailCRM_adm extends baseModuleAdmin
                 $umiPaymentStatuses = new selector('objects');
                 $umiPaymentStatuses->types('object-type')->name('emarket', 'order_payment_status');
 
-                $map = $this->getRelationMap($config->get('retailcrm', 'orderPaymentStatusMap'));
+                $map = RCrmHelpers::getRelationMap($config->get('retailcrm', 'orderPaymentStatusMap'));
 
                 $orderPaymentStatusesMapping = array();
                 foreach ($umiPaymentStatuses->result() as $umiPaymentStatus) {
@@ -101,7 +100,7 @@ abstract class __RetailCRM_adm extends baseModuleAdmin
                     $translations['order-payment-status-' . $umiPaymentStatusId] = $umiPaymentStatusName;
 
                     $orderPaymentStatusesMapping['select:order-payment-status-' . $umiPaymentStatusId] = array();
-                    $orderPaymentStatusesMapping['select:order-payment-status-' . $umiPaymentStatusId]['value'] = $this->getRelationByMap($map,
+                    $orderPaymentStatusesMapping['select:order-payment-status-' . $umiPaymentStatusId]['value'] = RCrmHelpers::getRelationByMap($map,
                         $umiPaymentStatusId);
 
                     $orderPaymentStatusesMapping['select:order-payment-status-' . $umiPaymentStatusId]['none'] = '';
@@ -118,26 +117,29 @@ abstract class __RetailCRM_adm extends baseModuleAdmin
                 $umiOrderStatuses = new selector('objects');
                 $umiOrderStatuses->types('object-type')->name('emarket', 'order_status');
 
-                $map = $this->getRelationMap($config->get('retailcrm', 'orderStatusMap'));
+                $map = RCrmHelpers::getRelationMap($config->get('retailcrm', 'orderStatusMap'));
 
                 $params['orderStatusesMapping'] = array();
                 foreach ($umiOrderStatuses->result() as $umiOrderStatus) {
-                    $translations['order-status-' . $umiOrderStatus->getPropByName('codename')->getValue()] = $umiOrderStatus->getName();
+                    $codeName = $umiOrderStatus->getValue('codename');
 
-                    $params['orderStatusesMapping']['select:order-status-' . $umiOrderStatus->getPropByName('codename')->getValue()] = array();
-                    $params['orderStatusesMapping']['select:order-status-' . $umiOrderStatus->getPropByName('codename')->getValue()]['value'] = $this->getRelationByMap($map,
-                        $umiOrderStatus->getPropByName('codename')->getValue());
+                    $translations['order-status-' . $codeName] = $umiOrderStatus->getName();
 
-                    $params['orderStatusesMapping']['select:order-status-' . $umiOrderStatus->getPropByName('codename')->getValue()]['none'] = '';
+                    $params['orderStatusesMapping']['select:order-status-' . $codeName] = array();
+                    $params['orderStatusesMapping']['select:order-status-' . $codeName]['value'] = RCrmHelpers::getRelationByMap($map, $codeName);
+                    $params['orderStatusesMapping']['select:order-status-' . $codeName]['none'] = '';
+
                     foreach ($crmOrderStatuses as $crmOrderStatus) {
-                        $params['orderStatusesMapping']['select:order-status-' . $umiOrderStatus->getPropByName('codename')->getValue()][$crmOrderStatus['code']] = $crmOrderStatus['name'];
+                        $params['orderStatusesMapping']['select:order-status-' . $codeName][$crmOrderStatus['code']] = $crmOrderStatus['name'];
                     }
                 }
 
                 $params['guidesMapping']['select:country'] = array();
                 $params['guidesMapping']['select:country']['value'] = $config->get('retailcrm', 'countryGuideId');
                 $params['guidesMapping']['select:country']['none'] = '';
+
                 $objectTypes = umiObjectTypesCollection::getInstance();
+
                 foreach ($objectTypes->getGuidesList() as $guideId => $guideName) {
                     $params['guidesMapping']['select:country'][$guideId] = $guideName;
                 }

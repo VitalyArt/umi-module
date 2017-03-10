@@ -1,13 +1,13 @@
 <?php
 
-abstract class RCrmHelpers
+class RCrmHelpers
 {
 
     /**
      * @param $mapArr array
      * @return array
      */
-    public function getRelationMap($mapArr)
+    public static function getRelationMap($mapArr)
     {
         if (empty($mapArr)) {
             return array();
@@ -28,7 +28,7 @@ abstract class RCrmHelpers
      * @param $reversed bool
      * @return string|null
      */
-    public function getRelationByMap($map, $item, $reversed = false)
+    public static function getRelationByMap($map, $item, $reversed = false)
     {
         if (!$reversed) {
             if (isset($map[$item]) && !empty($map[$item])) {
@@ -50,7 +50,7 @@ abstract class RCrmHelpers
      * @param $orderHistory array
      * @return array
      */
-    public function getAssemblyOrder($orderHistory)
+    public static function getAssemblyOrder($orderHistory)
     {
         if (file_exists(__DIR__ . '/../../data/objects.xml')) {
             $objects = simplexml_load_file(__DIR__ . '/../../data/objects.xml');
@@ -62,7 +62,7 @@ abstract class RCrmHelpers
         $orders = array();
 
         foreach ($orderHistory as $change) {
-            $change['order'] = $this->removeEmpty($change['order']);
+            $change['order'] = self::removeEmpty($change['order']);
 
             $orderId = $change['order']['id'];
 
@@ -106,24 +106,24 @@ abstract class RCrmHelpers
                     $orders[$orderId]['items'][$itemId]['deleted'] = true;
                 }
 
-                if (!$orders[$orderId]['items'][$itemId]['created'] && $fields['item'][$change['field']]) {
+                if (!$orders[$orderId]['items'][$itemId]['created'] && isset($fields['item']) && $fields['item'][$change['field']]) {
                     $orders[$orderId]['items'][$itemId][$fields['item'][$change['field']]] = $change['newValue'];
                 }
             } else {
                 if (isset($fields['delivery'][$change['field']]) && $fields['delivery'][$change['field']] == 'service') {
-                    $orders[$orderId]['delivery']['service']['code'] = $this->historyNewValue($change['newValue']);
+                    $orders[$orderId]['delivery']['service']['code'] = self::historyNewValue($change['newValue']);
                 } elseif (isset($fields['delivery'][$change['field']])) {
-                    $orders[$orderId]['delivery'][$fields['delivery'][$change['field']]] = $this->historyNewValue($change['newValue']);
+                    $orders[$orderId]['delivery'][$fields['delivery'][$change['field']]] = self::historyNewValue($change['newValue']);
                 } elseif (isset($fields['orderAddress'][$change['field']])) {
                     $orders[$orderId]['delivery']['address'][$fields['orderAddress'][$change['field']]] = $change['newValue'];
                 } elseif (isset($fields['integrationDelivery'][$change['field']])) {
-                    $orders[$orderId]['delivery']['service'][$fields['integrationDelivery'][$change['field']]] = $this->historyNewValue($change['newValue']);
+                    $orders[$orderId]['delivery']['service'][$fields['integrationDelivery'][$change['field']]] = self::historyNewValue($change['newValue']);
                 } elseif (isset($fields['customerContragent'][$change['field']])) {
-                    $orders[$orderId][$fields['customerContragent'][$change['field']]] = $this->historyNewValue($change['newValue']);
+                    $orders[$orderId][$fields['customerContragent'][$change['field']]] = self::historyNewValue($change['newValue']);
                 } elseif (strripos($change['field'], 'custom_') !== false) {
-                    $orders[$orderId]['customFields'][str_replace('custom_', '', $change['field'])] = $this->historyNewValue($change['newValue']);
+                    $orders[$orderId]['customFields'][str_replace('custom_', '', $change['field'])] = self::historyNewValue($change['newValue']);
                 } elseif (isset($fields['order'][$change['field']])) {
-                    $orders[$orderId][$fields['order'][$change['field']]] = $this->historyNewValue($change['newValue']);
+                    $orders[$orderId][$fields['order'][$change['field']]] = self::historyNewValue($change['newValue']);
                 }
 
                 if (isset($change['created'])) {
@@ -143,7 +143,7 @@ abstract class RCrmHelpers
      * @param $value mixed
      * @return string
      */
-    public function historyNewValue($value)
+    public static function historyNewValue($value)
     {
         if (isset($value['code'])) {
             return $value['code'];
@@ -156,14 +156,14 @@ abstract class RCrmHelpers
      * @param $inputArray mixed
      * @return array
      */
-    public function removeEmpty($inputArray)
+    public static function removeEmpty($inputArray)
     {
         $outputArray = array();
         if (!empty($inputArray)) {
             foreach ($inputArray as $key => $element) {
                 if (!empty($element) || $element === 0 || $element === '0') {
                     if (is_array($element)) {
-                        $element = $this->removeEmpty($element);
+                        $element = self::removeEmpty($element);
                     }
                     $outputArray[$key] = $element;
                 }

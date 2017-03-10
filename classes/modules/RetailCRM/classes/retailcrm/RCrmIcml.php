@@ -287,9 +287,7 @@ class RCrmIcml
                     if (is_array($photos) && count($photos)) {
                         $photo = reset($photos);
                         $photoPath = $this->shopUrl . $photo->getFilePath(true);
-
-                        $e->appendChild($this->dd->createElement('picture'))
-                            ->appendChild($this->dd->createTextNode($photoPath));
+                        $e->appendChild($this->dd->createElement('picture'))->appendChild($this->dd->createTextNode($photoPath));
                     }
                 }
 

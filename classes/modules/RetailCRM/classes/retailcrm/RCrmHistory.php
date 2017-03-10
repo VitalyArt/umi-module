@@ -5,20 +5,21 @@ class RCrmHistory
     /** @var RCrmApiClient $api */
     private $api = null;
 
+    /**
+     * RCrmHistory constructor.
+     */
     public function __construct()
     {
         $config = mainConfiguration::getInstance();
 
         $this->api = new RCrmProxy(
             $config->get('retailcrm', 'crmUrl'),
-            $config->get('retailcrm', 'apiKey'),
-            __DIR__ . '/../../../retailcrm.error.log'
+            $config->get('retailcrm', 'apiKey')
         );
     }
 
     public function runOrders()
     {
-        $retailcrm = new RetailCRM;
         $regedit = regedit::getInstance();
         $config = mainConfiguration::getInstance();
 
@@ -35,7 +36,7 @@ class RCrmHistory
             $response = $this->api->ordersHistory(array('sinceId' => $historyLastId), $historyPage);
             $historyPage++;
 
-            if (!is_null($response) && count($response['history'])) {
+            if ($response->isSuccessful() && count($response['history'])) {
                 $historyArray = array_merge($historyArray, $response['history']);
             } else {
                 break;
@@ -45,7 +46,7 @@ class RCrmHistory
         if (count($historyArray)) {
             $lastChange = end($historyArray);
 
-            $crmOrders = $retailcrm->getAssemblyOrder($historyArray);
+            $crmOrders = RCrmHelpers::getAssemblyOrder($historyArray);
 
             $objectTypes = umiObjectTypesCollection::getInstance();
             $objects = umiObjectsCollection::getInstance();
@@ -65,12 +66,32 @@ class RCrmHistory
                     $order = order::create();
 
                     /* Order create date */
-                    $order->getObject()->getPropByName('order_date')->setValue(umiDate::getTimeStamp($crmOrder['createdAt']));
+                    $order->getObject()->setValue('order_date', umiDate::getTimeStamp($crmOrder['createdAt']));
 
+                    if (!empty($crmOrder['number'])) {
+                        $order->setName($crmOrder['number']);
+                    } else {
+                        $order->generateNumber();
+                        $order->setName($order->getName() . ' ' . $crmOrder['id'] . "-retailcrm");
+                    }
+
+                    $this->api->ordersFixExternalIds(array(
+                        array(
+                            'id' => $crmOrder['id'],
+                            'externalId' => $order->getId()
+                        )
+                    ));
+                }
+
+                if (!$order) {
+                    continue;
+                }
+
+                if (isset($crmOrder['customer'])) {
                     $crmCustomer = $crmOrder['customer'];
                     if (isset($crmCustomer['externalId']) && $crmCustomer['externalId'] > 0) {
                         // TODO: проверить существует ли такой пользователь в системе, если нет, то создать, т.к. принимая customer externalId мы считаем, что такой пользователь уже есть
-                        $order->getObject()->getPropByName('customer_id')->setValue($crmCustomer['externalId']);
+                        $order->getObject()->setValue('customer_id', $crmCustomer['externalId']);
                     } else {
                         $customer = $objects->getObjectByName($crmCustomer['id'] . '-retailcrm');
 
@@ -90,23 +111,31 @@ class RCrmHistory
                             $expirations->add($customerId, customer::$defaultExpiration);
 
                             if (!empty($crmCustomer['firstName'])) {
-                                $customer->getPropByName('fname')->setValue($crmCustomer['firstName']);
+                                $customer->setValue('fname', $crmCustomer['firstName']);
                             }
 
                             if (!empty($crmCustomer['lastName'])) {
-                                $customer->getPropByName('lname')->setValue($crmCustomer['lastName']);
+                                $customer->setValue('lname', $crmCustomer['lastName']);
                             }
 
                             if (!empty($crmCustomer['patronymic'])) {
-                                $customer->getPropByName('father_name')->setValue($crmCustomer['patronymic']);
+                                $customer->setValue('father_name', $crmCustomer['patronymic']);
                             }
 
                             if (!empty($crmCustomer['email'])) {
-                                $customer->getPropByName('email')->setValue($crmCustomer['email']);
+                                if ($customer->getTypeGUID() == 'emarket-customer') {
+                                    $customer->setValue('email', $crmCustomer['email']);
+                                } else {
+                                    if ($customer->getTypeGUID() == 'users-user') {
+                                        $customer->setValue('e-mail', $crmCustomer['email']);
+                                    } else {
+                                        $customer->setValue('email', $crmCustomer['email']);
+                                    }
+                                }
                             }
 
                             if (isset($crmCustomer['phones']) && count($crmCustomer['phones']) > 0) {
-                                $customer->getPropByName('phone')->setValue($crmCustomer['phones'][0]['number']);
+                                $customer->setValue('phone', $crmCustomer['phones'][0]['number']);
                             }
 
                             if (isset($crmCustomer['address'])) {
@@ -133,56 +162,61 @@ class RCrmHistory
                                         $countryCode = $country->getValue('country_iso_code');
 
                                         if ($crmCustomerAddress['countryIso'] == $countryCode) {
-                                            $deliveryObject->getPropByName('country')->setValue($country->getId());
+                                            $deliveryObject->setValue('country', $country->getId());
                                             break;
                                         }
                                     }
                                 }
                                 if (!empty($crmCustomerAddress['index'])) {
-                                    $deliveryObject->getPropByName('index')->setValue($crmCustomerAddress['index']);
+                                    $deliveryObject->setValue('index', $crmCustomerAddress['index']);
                                 }
 
                                 if (!empty($crmCustomerAddress['region'])) {
-                                    $deliveryObject->getPropByName('region')->setValue($crmCustomerAddress['region']);
+                                    $deliveryObject->setValue('region', $crmCustomerAddress['region']);
                                 }
 
                                 if (!empty($crmCustomerAddress['city'])) {
-                                    $deliveryObject->getPropByName('city')->setValue($crmCustomerAddress['city']);
+                                    $deliveryObject->setValue('city', $crmCustomerAddress['city']);
                                 }
 
                                 if (!empty($crmCustomerAddress['street'])) {
-                                    $deliveryObject->getPropByName('street')->setValue($crmCustomerAddress['street']);
+                                    $deliveryObject->setValue('street', $crmCustomerAddress['street']);
                                 }
 
                                 if (!empty($crmCustomerAddress['building'])) {
-                                    $deliveryObject->getPropByName('house')->setValue($crmCustomerAddress['building']);
+                                    $deliveryObject->setValue('house', $crmCustomerAddress['building']);
                                 }
 
                                 if (!empty($crmCustomerAddress['flat'])) {
-                                    $deliveryObject->getPropByName('flat')->setValue($crmCustomerAddress['flat']);
+                                    $deliveryObject->setValue('flat', $crmCustomerAddress['flat']);
                                 }
 
                                 $deliveryAddresses = array(
                                     0 => $deliveryObject->getId()
                                 );
 
-                                $customer->getPropByName('delivery_addresses')->setValue($deliveryAddresses);
+                                $customer->setValue('delivery_addresses', $deliveryAddresses);
                             }
                         }
 
-                        $order->getObject()->getPropByName('customer_id')->setValue($customer->getId());
+                        $order->getObject()->setValue('customer_id', $customer->getId());
                     }
+                }
 
+                if (isset($crmOrder['items']) && count($crmOrder['items']) > 0) {
                     $orderItems = $order->getItems();
                     foreach ($orderItems as $orderItem) {
                         $order->removeItem($orderItem);
                     }
 
-                    $crmItems = $crmOrder['items'];
+                    $crmOrderForItems = $this->api->ordersGet($crmOrder['externalId'])->offsetGet('order');
+                    $crmItems = $crmOrderForItems['items'];
+
                     foreach ($crmItems as $crmItem) {
                         if (isset($crmItem['deleted']) && $crmItem['deleted'] == true) {
                             continue;
                         }
+
                         if (!isset($crmItem['offer']['externalId'])) {
                             continue;
                         }
@@ -195,6 +229,7 @@ class RCrmHistory
 
                             $itemOptions = $data[1];
                             $itemOptions = explode('-', $itemOptions);
+
                             foreach ($itemOptions as $itemOption) {
                                 $itemOption = explode('_', $itemOption);
                                 $itemOptionGroupId = $itemOption[0];
@@ -209,255 +244,121 @@ class RCrmHistory
 
                         /** @var optionedOrderItem $orderItem */
                         $orderItem->setAmount($crmItem['quantity']);
-
                         $order->appendItem($orderItem);
-                    }
-
-                    if (isset($crmOrder['paymentType'])) {
-                        $relationOrderPaymentTypesMap = $retailcrm->getRelationMap($config->get('retailcrm', 'orderPaymentTypeMap'));
-                        $umiOrderPaymentType = $retailcrm->getRelationByMap($relationOrderPaymentTypesMap, $crmOrder['paymentType'], true);
-                        $order->getObject()->getPropByName('payment_id')->setValue($umiOrderPaymentType);
-                    }
-
-                    if (isset($crmOrder['paymentStatus'])) {
-                        $relationOrderPaymentStatusesMap = $retailcrm->getRelationMap($config->get('retailcrm', 'orderPaymentStatusMap'));
-                        $umiOrderPaymentStatus = $retailcrm->getRelationByMap($relationOrderPaymentStatusesMap, $crmOrder['paymentStatus'], true);
-                        $order->getObject()->getPropByName('payment_status_id')->setValue($umiOrderPaymentStatus);
-                    }
-
-                    if (isset($crmOrder['delivery']['cost'])) {
-                        $order->getObject()->getPropByName('delivery_price')->setValue($crmOrder['delivery']['cost']);
-                    }
-                    
-                    if (isset($crmOrder['delivery']['code'])) {
-                        $relationOrderDeliveryTypesMap = $retailcrm->getRelationMap($config->get('retailcrm', 'orderDeliveryTypeMap'));
-                        $umiOrderDeliveryType = $retailcrm->getRelationByMap($relationOrderDeliveryTypesMap, $crmOrder['delivery']['code'], true);
-                        $order->getObject()->getPropByName('delivery_id')->setValue($umiOrderDeliveryType);
-                    }
-
-                    if (isset($crmOrder['delivery']['address']) && count($crmOrder['delivery']['address'])) {
-                        $crmDeliveryAddress = $crmOrder['delivery']['address'];
-
-                        $deliveryTypeId = $objectTypes->getTypeIdByGUID('emarket-deliveryaddress');
-                        $deliveryObjectId = $objects->addObject('Address for order ' . $order->getId(), $deliveryTypeId);
-                        $deliveryObject = $objects->getObject($deliveryObjectId);
-
-                        if (!empty($crmDeliveryAddress['countryIso'])) {
-                            $selector = new selector('objects');
-                            try {
-                                $selector->types('object-type')->id($config->get('retailcrm', 'countryGuideId'));
-                                $countries = $selector->result();
-
-                                foreach ($countries as $country) {
-                                    /** @var umiObject $country */
-
-                                    $countryCode = $country->getValue('country_iso_code');
-
-                                    if ($crmDeliveryAddress['countryIso'] == $countryCode) {
-                                        $deliveryObject->getPropByName('country')->setValue($country->getId());
-                                        break;
-                                    }
-                                }
-                            } catch (selectorException $e) {}
-                        }
-
-                        if (!empty($crmDeliveryAddress['index'])) {
-                            $deliveryObject->getPropByName('index')->setValue($crmDeliveryAddress['index']);
-                        }
-
-                        if (!empty($crmDeliveryAddress['region'])) {
-                            $deliveryObject->getPropByName('region')->setValue($crmDeliveryAddress['region']);
-                        }
-
-                        if (!empty($crmDeliveryAddress['city'])) {
-                            $deliveryObject->getPropByName('city')->setValue($crmDeliveryAddress['city']);
-                        }
-
-                        if (!empty($crmDeliveryAddress['street'])) {
-                            $deliveryObject->getPropByName('street')->setValue($crmDeliveryAddress['street']);
-                        }
-
-                        if (!empty($crmDeliveryAddress['building'])) {
-                            $deliveryObject->getPropByName('house')->setValue($crmDeliveryAddress['building']);
-                        }
-
-                        if (!empty($crmDeliveryAddress['flat'])) {
-                            $deliveryObject->getPropByName('flat')->setValue($crmDeliveryAddress['flat']);
-                        }
-
-                        $order->getObject()->getPropByName('delivery_address')->setValue($deliveryObject->getId());
-                    }
-
-                    if (!empty($crmOrder['number'])) {
-                        $order->setName($crmOrder['number']);
-                    } else {
-                        $order->generateNumber();
-                        $order->setName($order->getName() . ' ' . $crmOrder['id'] . "-retailcrm");
-                    }
-
-                    $this->api->ordersFixExternalIds(array(
-                        array(
-                            'id' => $crmOrder['id'],
-                            'externalId' => $order->getId()
-                        )
-                    ));
-                } else {
-                    if (!$order) {
-                        continue;
-                    }
-
-                    if (isset($crmOrder['items']) && count($crmOrder['items']) > 0) {
-                        $orderItems = $order->getItems();
-                        foreach ($orderItems as $orderItem) {
-                            $order->removeItem($orderItem);
-                        }
-
-                        $crmOrderForItems = $this->api->ordersGet($crmOrder['externalId'])->getOrder();
-                        $crmItems = $crmOrderForItems['items'];
-
-                        foreach ($crmItems as $crmItem) {
-                            if (isset($crmItem['deleted']) && $crmItem['deleted'] == true) {
-                                continue;
-                            }
-                            if (!isset($crmItem['offer']['externalId'])) {
-                                continue;
-                            }
-
-                            if (mb_strpos($crmItem['offer']['externalId'], '#')) {
-                                $data = explode('#', $crmItem['offer']['externalId']);
-                                $itemId = $data[0];
-
-                                $orderItem = orderItem::create($itemId);
-
-                                $itemOptions = $data[1];
-                                $itemOptions = explode('-', $itemOptions);
-                                foreach ($itemOptions as $itemOption) {
-                                    $itemOption = explode('_', $itemOption);
-                                    $itemOptionGroupId = $itemOption[0];
-                                    $itemOptionValue = $itemOption[1];
-                                    $itemOptionObject = new umiField($itemOptionGroupId);
-
-                                    $orderItem->appendOption($itemOptionObject->getName(), $itemOptionValue);
-                                }
-                            } else {
-                                $orderItem = orderItem::create($crmItem['offer']['externalId']);
-                            }
-
-                            /** @var optionedOrderItem $orderItem */
-                            $orderItem->setAmount($crmItem['quantity']);
-                            $order->appendItem($orderItem);
-                        }
-                    }
-
-                    $customer = $objects->getObject($order->getCustomerId());
-
-                    if (isset($crmOrder['phone'])) {
-                        $customer->getPropByName('phone')->setValue($crmOrder['phone']);
-                    }
-
-                    if (isset($crmOrder['lastName'])) {
-                        $customer->getPropByName('lname')->setValue($crmOrder['lastName']);
-                    }
-
-                    if (isset($crmOrder['firstName'])) {
-                        $customer->getPropByName('fname')->setValue($crmOrder['firstName']);
-                    }
-
-                    if (isset($crmOrder['patronymic'])) {
-                        $customer->getPropByName('father_name')->setValue($crmOrder['patronymic']);
-                    }
-
-                    if (isset($crmOrder['e-mail'])) {
-                        $customer->getPropByName('e-mail')->setValue($crmOrder['e-mail']);
-                    }
-
-                    if (isset($crmOrder['paymentType'])) {
-                        $relationOrderPaymentTypesMap = $retailcrm->getRelationMap($config->get('retailcrm', 'orderPaymentTypeMap'));
-                        $umiOrderPaymentType = $retailcrm->getRelationByMap($relationOrderPaymentTypesMap, $crmOrder['paymentType'], true);
-                        $order->getObject()->getPropByName('payment_id')->setValue($umiOrderPaymentType);
-                    }
-
-                    if (isset($crmOrder['paymentStatus'])) {
-                        $relationOrderPaymentStatusesMap = $retailcrm->getRelationMap($config->get('retailcrm', 'orderPaymentStatusMap'));
-                        $umiOrderPaymentStatus = $retailcrm->getRelationByMap($relationOrderPaymentStatusesMap, $crmOrder['paymentStatus'], true);
-                        $order->getObject()->getPropByName('payment_status_id')->setValue($umiOrderPaymentStatus);
-                    }
-
-                    if (isset($crmOrder['delivery']['cost'])) {
-                        $order->getObject()->getPropByName('delivery_price')->setValue($crmOrder['delivery']['cost']);
-                    }
-                    
-                    if (isset($crmOrder['delivery']['code'])) {
-                        $relationOrderDeliveryTypesMap = $retailcrm->getRelationMap($config->get('retailcrm', 'orderDeliveryTypeMap'));
-                        $umiOrderDeliveryType = $retailcrm->getRelationByMap($relationOrderDeliveryTypesMap, $crmOrder['delivery']['code'], true);
-                        $order->getObject()->getPropByName('delivery_id')->setValue($umiOrderDeliveryType);
-                    }
-
-                    if (isset($crmOrder['delivery']['address']) && count($crmOrder['delivery']['address'])) {
-                        $crmDeliveryAddress = $crmOrder['delivery']['address'];
-
-                        $deliveryTypeId = $objectTypes->getTypeIdByGUID('emarket-deliveryaddress');
-                        $deliveryObject = $objects->getObjectByName('Address for order ' . $order->getId());
-                        if (!$deliveryObject) {
-                            $deliveryObjectId = $objects->addObject('Address for order ' . $order->getId(), $deliveryTypeId);
-                            $deliveryObject = $objects->getObject($deliveryObjectId);
-                        }
-
-                        if (!empty($crmDeliveryAddress['countryIso'])) {
-                            $selector = new selector('objects');
-                            $selector->types('object-type')->id($config->get('retailcrm', 'countryGuideId'));
-
-                            $countries = $selector->result();
-
-                            foreach ($countries as $country) {
-                                /** @var umiObject $country */
-
-                                $countryCode = $country->getValue('country_iso_code');
-
-                                if ($crmDeliveryAddress['countryIso'] == $countryCode) {
-                                    $deliveryObject->getPropByName('country')->setValue($country->getId());
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (!empty($crmDeliveryAddress['index'])) {
-                            $deliveryObject->getPropByName('index')->setValue($crmDeliveryAddress['index']);
-                        }
-
-                        if (!empty($crmDeliveryAddress['region'])) {
-                            $deliveryObject->getPropByName('region')->setValue($crmDeliveryAddress['region']);
-                        }
-
-                        if (!empty($crmDeliveryAddress['city'])) {
-                            $deliveryObject->getPropByName('city')->setValue($crmDeliveryAddress['city']);
-                        }
-
-                        if (!empty($crmDeliveryAddress['street'])) {
-                            $deliveryObject->getPropByName('street')->setValue($crmDeliveryAddress['street']);
-                        }
-
-                        if (!empty($crmDeliveryAddress['building'])) {
-                            $deliveryObject->getPropByName('house')->setValue($crmDeliveryAddress['building']);
-                        }
-
-                        if (!empty($crmDeliveryAddress['flat'])) {
-                            $deliveryObject->getPropByName('flat')->setValue($crmDeliveryAddress['flat']);
-                        }
-
-                        $order->getObject()->getPropByName('delivery_address')->setValue($deliveryObject->getId());
                     }
                 }
 
-                if (!$order) {
-                    continue;
+                $customer = $objects->getObject($order->getCustomerId());
+
+                if (isset($crmOrder['phone'])) {
+                    $customer->setValue('phone', $crmOrder['phone']);
+                }
+
+                if (isset($crmOrder['lastName'])) {
+                    $customer->setValue('lname', $crmOrder['lastName']);
+                }
+
+                if (isset($crmOrder['firstName'])) {
+                    $customer->setValue('fname', $crmOrder['firstName']);
+                }
+
+                if (isset($crmOrder['patronymic'])) {
+                    $customer->setValue('father_name', $crmOrder['patronymic']);
+                }
+
+                if (!empty($crmCustomer['email'])) {
+                    if ($customer->getTypeGUID() == 'emarket-customer') {
+                        $customer->setValue('email', $crmCustomer['email']);
+                    } else if ($customer->getTypeGUID() == 'users-user') {
+                        $customer->setValue('e-mail', $crmCustomer['email']);
+                    } else {
+                        $customer->setValue('email', $crmCustomer['email']);
+                    }
+                }
+
+                if (isset($crmOrder['paymentType'])) {
+                    $relationOrderPaymentTypesMap = RCrmHelpers::getRelationMap($config->get('retailcrm', 'orderPaymentTypeMap'));
+                    $umiOrderPaymentType = RCrmHelpers::getRelationByMap($relationOrderPaymentTypesMap, $crmOrder['paymentType'], true);
+                    $order->getObject()->setValue('payment_id', $umiOrderPaymentType);
+                }
+
+                if (isset($crmOrder['paymentStatus'])) {
+                    $relationOrderPaymentStatusesMap = RCrmHelpers::getRelationMap($config->get('retailcrm', 'orderPaymentStatusMap'));
+                    $umiOrderPaymentStatus = RCrmHelpers::getRelationByMap($relationOrderPaymentStatusesMap, $crmOrder['paymentStatus'], true);
+                    $order->getObject()->setValue('payment_status_id', $umiOrderPaymentStatus);
+                }
+
+                if (isset($crmOrder['delivery']['cost'])) {
+                    $order->getObject()->setValue('delivery_price', $crmOrder['delivery']['cost']);
+                }
+
+                if (isset($crmOrder['delivery']['code'])) {
+                    $relationOrderDeliveryTypesMap = RCrmHelpers::getRelationMap($config->get('retailcrm', 'orderDeliveryTypeMap'));
+                    $umiOrderDeliveryType = RCrmHelpers::getRelationByMap($relationOrderDeliveryTypesMap, $crmOrder['delivery']['code'], true);
+                    $order->getObject()->setValue('delivery_id', $umiOrderDeliveryType);
+                }
+
+                if (isset($crmOrder['delivery']['address']) && count($crmOrder['delivery']['address'])) {
+                    $crmDeliveryAddress = $crmOrder['delivery']['address'];
+
+                    $deliveryTypeId = $objectTypes->getTypeIdByGUID('emarket-deliveryaddress');
+                    $deliveryObject = $objects->getObjectByName('Address for order ' . $order->getId());
+
+                    if (!$deliveryObject) {
+                        $deliveryObjectId = $objects->addObject('Address for order ' . $order->getId(), $deliveryTypeId);
+                        $deliveryObject = $objects->getObject($deliveryObjectId);
+                    }
+
+                    if (!empty($crmDeliveryAddress['countryIso'])) {
+                        $selector = new selector('objects');
+                        $selector->types('object-type')->id($config->get('retailcrm', 'countryGuideId'));
+
+                        $countries = $selector->result();
+
+                        foreach ($countries as $country) {
+                            /** @var umiObject $country */
+
+                            $countryCode = $country->getValue('country_iso_code');
+
+                            if ($crmDeliveryAddress['countryIso'] == $countryCode) {
+                                $deliveryObject->setValue('country', $country->getId());
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!empty($crmDeliveryAddress['index'])) {
+                        $deliveryObject->setValue('index', $crmDeliveryAddress['index']);
+                    }
+
+                    if (!empty($crmDeliveryAddress['region'])) {
+                        $deliveryObject->setValue('region', $crmDeliveryAddress['region']);
+                    }
+
+                    if (!empty($crmDeliveryAddress['city'])) {
+                        $deliveryObject->setValue('city', $crmDeliveryAddress['city']);
+                    }
+
+                    if (!empty($crmDeliveryAddress['street'])) {
+                        $deliveryObject->setValue('street', $crmDeliveryAddress['street']);
+                    }
+
+                    if (!empty($crmDeliveryAddress['building'])) {
+                        $deliveryObject->setValue('house', $crmDeliveryAddress['building']);
+                    }
+
+                    if (!empty($crmDeliveryAddress['flat'])) {
+                        $deliveryObject->setValue('flat', $crmDeliveryAddress['flat']);
+                    }
+
+                    $order->getObject()->setValue('delivery_address', $deliveryObject->getId());
                 }
 
                 $regedit->setVal('//modules/RetailCRM/IgnoreObjectUpdateEvent/' . $order->getObject()->getId(), time());
 
                 if (isset($crmOrder['status'])) {
-                    $relationMap = $retailcrm->getRelationMap($config->get('retailcrm', 'orderStatusMap'));
-                    $umiOrderStatusCode = $retailcrm->getRelationByMap($relationMap, $crmOrder['status'], true);
+                    $relationMap = RCrmHelpers::getRelationMap($config->get('retailcrm', 'orderStatusMap'));
+                    $umiOrderStatusCode = RCrmHelpers::getRelationByMap($relationMap, $crmOrder['status'], true);
                     if ($umiOrderStatusCode) {
                         // меняем дату редактирования заказа, для того, чтобы его не перехватил хенлдер и не выплюнул обратно в црм
                         $order->getObject()->setUpdateTime(time());
